@@ -9,6 +9,7 @@ import application.Main;
 import gui.listeners.DataChangeListener;
 import gui.util.Alerts;
 import gui.util.Utils;
+import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
@@ -18,6 +19,7 @@ import javafx.fxml.Initializable;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
+import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.cell.PropertyValueFactory;
@@ -27,23 +29,26 @@ import javafx.stage.Stage;
 import model.entities.Department;
 import model.services.DepartmentService;
 
-public class DepartmentListController implements Initializable , DataChangeListener {
+public class DepartmentListController implements Initializable, DataChangeListener {
 	private DepartmentService service;
-	
+
 	@FXML
 	private TableView<Department> tableViewDepartment;
-	
+
 	@FXML
 	private TableColumn<Department, Integer> tableColumnId;
-	
+
 	@FXML
 	private TableColumn<Department, String> tableColumnName;
-	
+
+	@FXML
+	private TableColumn<Department, Department> tableColumnEDIT;
+
 	@FXML
 	private Button btNew;
-	
+
 	private ObservableList<Department> obsList;
-	
+
 	@FXML
 	public void onBtNewAction(ActionEvent event) {
 		Stage parentStage = Utils.currentStage(event);
@@ -54,50 +59,50 @@ public class DepartmentListController implements Initializable , DataChangeListe
 	public void setDepartmentService(DepartmentService service) { // injeção de dependência
 		this.service = service;
 	}
-	
+
 	@Override
 	public void initialize(URL url, ResourceBundle rb) {
 		initializeNodes();
 	}
 
 	private void initializeNodes() {
-		tableColumnId.setCellValueFactory(new PropertyValueFactory<>("id"));  //iniciar o comportamento das colunas
+		tableColumnId.setCellValueFactory(new PropertyValueFactory<>("id")); // iniciar o comportamento das colunas
 		tableColumnName.setCellValueFactory(new PropertyValueFactory<>("name"));
-		
+
 		Stage stage = (Stage) Main.getMainScene().getWindow(); // Fazer o table view acompanhar a altura da janela
 		tableViewDepartment.prefHeightProperty().bind(stage.heightProperty());
 	}
-	
+
 	public void updateTableView() {
 		if (service == null) {
 			throw new IllegalStateException("Service was null");
 		}
-		
+
 		List<Department> list = service.findAll();
 		obsList = FXCollections.observableArrayList(list);
 		tableViewDepartment.setItems(obsList);
+		initEditButtons(); // Acrescenta um botão "edit" em cada linha da tabela 
 	}
-	
-	private void createDialogForm(Department obj, String absoluteName , Stage parentStage) {
+
+	private void createDialogForm(Department obj, String absoluteName, Stage parentStage) {
 		try {
 			FXMLLoader loader = new FXMLLoader(getClass().getResource(absoluteName));
 			Pane pane = loader.load();
-			
-			DepartmentFormController controller = loader.getController(); 
+
+			DepartmentFormController controller = loader.getController();
 			controller.setDepartment(obj); // injetar a dependencia da classe do objeto
 			controller.setDepartmentService(new DepartmentService());
 			controller.subscribedataChangeListener(this); // inscreve o objeto como observer
 			controller.updateFormData();
-			
-			Stage dialogStage = new Stage();       // necessita de outro palco (Stage)
+
+			Stage dialogStage = new Stage(); // necessita de outro palco (Stage)
 			dialogStage.setTitle("Enter Department data");
 			dialogStage.setScene(new Scene(pane));
-			dialogStage.setResizable(false);        // não pode ser redimensionada
+			dialogStage.setResizable(false); // não pode ser redimensionada
 			dialogStage.initOwner(parentStage);
 			dialogStage.initModality(Modality.WINDOW_MODAL);
 			dialogStage.showAndWait();
-		}
-		catch (IOException e) {
+		} catch (IOException e) {
 			Alerts.showAlert("IOException", "Error loading view", e.getMessage(), AlertType.ERROR);
 		}
 	}
@@ -105,5 +110,25 @@ public class DepartmentListController implements Initializable , DataChangeListe
 	@Override
 	public void onDataChanged() {
 		updateTableView();
+	}
+
+	 // Incluir um botão de edição "edit" em cada linha da tabela
+	private void initEditButtons() { 
+		tableColumnEDIT.setCellValueFactory(param -> new ReadOnlyObjectWrapper<>(param.getValue()));
+		tableColumnEDIT.setCellFactory(param -> new TableCell<Department, Department>() {
+			private final Button button = new Button("edit");
+
+			@Override
+			protected void updateItem(Department obj, boolean empty) {
+				super.updateItem(obj, empty);
+				if (obj == null) {
+					setGraphic(null);
+					return;
+				}
+				setGraphic(button);
+				button.setOnAction(
+						event -> createDialogForm(obj, "/gui/DepartmentForm.fxml", Utils.currentStage(event)));
+			}
+		});
 	}
 }
